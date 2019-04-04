@@ -1,5 +1,7 @@
 # ShipStation
 
+Updated for decimals!
+
 Extract the zip file into magento root folder
 
 then execute the setup upgrade command      
