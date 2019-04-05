@@ -524,16 +524,17 @@ class Export
                     $this->_addFieldToXML("ImageUrl", $imageUrl);
                     $this->_addFieldToXML("Weight", $weight);
                     $this->_addFieldToXML("UnitPrice", $price);
-                    $this->_addFieldToXML(
-                        "Quantity",
-                        intval($orderItem->getQtyOrdered())
-                    );
+                    // quantity is always 1, real qty is inside options
+                    $this->_addFieldToXML("Quantity",1);
+
                     //Get the item level gift message info
                     $this->_getGiftMessageInfo($orderItem);
                     /*
                      * Check for the attributes
                      */
                     $this->_xmlData .="\t<Options>\n";
+                    // insert real quantity as an option
+                    $this->_xmlData .= $this->_writeOption('Qty', $orderItem->getQtyOrdered());
                     $list = [];
                     $attributeCodes = explode(',', $this->_attributes);
                     foreach ($attributeCodes as $attributeCode) {
