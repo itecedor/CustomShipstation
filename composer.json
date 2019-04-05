@@ -10,7 +10,7 @@
      "autoload": {
         "files": [ "registration.php" ],
         "psr-4": {
-            "CustomShipstation\\Api\\": ""
+            "Auctane\\Api\\": ""
         }
     }
 }
