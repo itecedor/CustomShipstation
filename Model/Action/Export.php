@@ -460,7 +460,13 @@ class Export
 
                 //Get the parent item from the order item
                 $parentItem = $orderItem->getParentItem();
-                $weight = $orderItem->getWeight();
+
+                // product weight
+                $productWeight = $orderItem->getWeight();
+
+                // orderItem weight
+                $weight = $productWeight * $orderItem->getQtyOrdered();
+
                 if ($this->_priceType) {
                     $price = $orderItem->getBasePrice();
                 } else {
