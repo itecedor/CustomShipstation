@@ -2,9 +2,43 @@
 namespace Auctane\Api\Controller\Auctane;
 
 use Exception;
+use Magento\Framework\App\CsrfAwareActionInterface;
+use Magento\Framework\App\Request\InvalidRequestException;
+use Magento\Framework\App\RequestInterface;
 
-class Index extends \Magento\Framework\App\Action\Action
+class Index extends \Magento\Framework\App\Action\Action implements CsrfAwareActionInterface
 {
+
+    /**
+     * Temporary fix to circumvent the token validation on POST request made to Shipstation
+     *
+     * @param RequestInterface $request
+     * @return bool|null
+     */
+    public function validateForCsrf(RequestInterface $request): ?bool
+    {
+        return true;
+    }
+
+    /**
+     * Mandatory method to implement the CsrfAwareActionInterface
+     *
+     * @param RequestInterface $request
+     * @return InvalidRequestException|null
+     */
+    public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException
+    {
+        $response = $this->redirectFactory->create()
+            ->setRefererOrBaseUrl()
+            ->setHttpResponseCode(302);
+        $messages = [
+            new Phrase('Invalid Form Key. Please refresh the page.'),
+        ];
+        $exception = new InvalidRequestException($response, $messages);
+
+        return $exception;
+    }
+
     /**
      * Default function
      *
@@ -20,10 +54,35 @@ class Index extends \Magento\Framework\App\Action\Action
             'Magento\Store\Model\StoreManagerInterface'
         );
         $storeId = $storeManager->getStore()->getId();
-
+        
         $storageInterface = $this->_objectManager->get(
             '\Magento\Backend\Model\Auth\Credential\StorageInterface'
         );
+
+        $scopeConfig = $this->_objectManager->get(
+            '\Magento\Framework\App\Config\ScopeConfigInterface'
+        );
+
+        // $apiKey = $scopeConfig->getValue(
+        //     'shipstation_general/shipstation/ship_api_key'
+        // );
+
+        //$headers = getallheaders();
+        // $shipApiKey = '';
+        
+        // if(isset($headers['ShipStation-Access-Token'])) {
+        //     $shipApiKey = $headers['ShipStation-Access-Token']; 
+        // }
+
+        // if(($shipApiKey == $apiKey)  && $shipApiKey && $apiKey) {
+        //     $userAuthentication = 1;
+        // } else {
+        //     $userAuthentication = $storageInterface->authenticate(
+        //         $authUser,
+        //         $authPassword
+        //     );    
+        // }
+
         $userAuthentication = $storageInterface->authenticate(
             $authUser,
             $authPassword
@@ -47,7 +106,7 @@ class Index extends \Magento\Framework\App\Action\Action
                         'Auctane\Api\Model\Action\Export'
                     );
                     $result = $export->process($this->getRequest(), $storeId);
-                    break;
+                    break; 
 
                 case 'shipnotify':
                     $shipNotify = $this->_objectManager->get(
@@ -57,10 +116,11 @@ class Index extends \Magento\Framework\App\Action\Action
                     // if there hasn't been an error then "200 OK" is given
                     break;
             }
+
         } catch (Exception $fault) {
             $result = $dataHelper->fault($fault->getCode(), $fault->getMessage());
         }
-
+        
         $this->getResponse()->setBody($result);
     }
 }

@@ -10,6 +10,12 @@
             <label>General Settings</label>
             <resource>Magento_Config::config</resource>
             <group id="shipstation"  showInDefault="1">
+                <!-- <field id="ship_api_key" translate="label" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>ShipStation Api Key</label>
+                </field>
+                <field id="build_indexes" translate="label comment tooltip" type="button"         sortOrder="6" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <frontend_model>Auctane\Api\Block\System\Config\Button</frontend_model> 
+                </field> -->
                 <field id="export_price" translate="label" type="select" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Price Export Type</label>
                     <source_model>Auctane\Api\Model\Config\Source\Price</source_model>
@@ -25,6 +31,10 @@
                 </field>
                 <field id="import_child_products" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Import Child Products</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="custom_invoicing" translate="label" type="select" sortOrder="25" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Custom/Auto Invoicing Enabled</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
             </group>
