@@ -15,10 +15,10 @@ class Export
      * Set order export size
      */
     const EXPORT_SIZE = '100';
-       
+
     /**
-     * Order collection factory 
-     *   
+     * Order collection factory
+     *
      * @var \Magento\Sales\Model\ResourceModel\Order\CollectionFactory
      */
     private $_order;
@@ -26,7 +26,7 @@ class Export
     /**
      * Scope config
      *
-     * @var \Magento\Framework\App\Config\ScopeConfigInterface 
+     * @var \Magento\Framework\App\Config\ScopeConfigInterface
      */
     private $_scopeConfig;
 
@@ -50,7 +50,7 @@ class Export
      * @var \Magento\GiftMessage\Helper\Message
      */
     private $_giftMessage;
-    
+
 
     /**
      * Country factory
@@ -193,7 +193,7 @@ class Export
                 $orders = $this->_order->create()
                     ->addAttributeToSort('updated_at', 'desc')
                     ->addAttributeToFilter(
-                        'updated_at', 
+                        'updated_at',
                         ['from' => $from,'to' => $end]
                     );
                 //Add the order filter for the specific store
@@ -201,7 +201,7 @@ class Export
                     $orders->addAttributeToFilter('store_id', $storeId);
                 }
 
-                //Set the pagination to return the number of orders. 
+                //Set the pagination to return the number of orders.
                 if ($page > 0) {
                     $orders->setPage($page, self::EXPORT_SIZE);
                 }
@@ -213,7 +213,7 @@ class Export
                         if (!empty($order)) {
                             // check if shipping info is available with order.
                             $orderShipping = $order->getShippingDescription();
-                            if ($orderShipping) {       
+                            if ($orderShipping) {
                                 $this->_writeOrder($order);
                             } else {
                                 continue;
@@ -223,7 +223,7 @@ class Export
                             continue;
                         }
 
-                    } 
+                    }
                 }
 
                 $this->_xmlData .= "</Orders>";
@@ -272,7 +272,7 @@ class Export
         $this->_addFieldToXML("LastModified", $order->getUpdatedAt());
         //Get the shipping method name and carrier name
         $this->_addFieldToXML(
-            "ShippingMethod", 
+            "ShippingMethod",
             $order->getShippingDescription()
         );
         //Check for the price type
@@ -385,13 +385,13 @@ class Export
         $shipping = $order->getShippingAddress();
         if (!empty($shipping)) {
             $name = $shipping->getFirstname() . ' ' . $shipping->getLastname();
-            
+
             $country = '';
             if($shipping->getCountryId()) {
                 $country = $this->_countryFactory->create()
                     ->loadByCode($shipping->getCountryId())->getName();
             }
-            
+
             $this->_xmlData .= "\t<ShipTo>\n";
             $this->_addFieldToXML("Name", '<![CDATA[' . $name . ']]>');
             $this->_addFieldToXML(
@@ -426,7 +426,7 @@ class Export
      * Write the order discount details in to the xml response data
      *
      * @param \Magento\Sales\Model\Order $order order object
-     * 
+     *
      * @return orer discount
      */
     private function _getOrderDiscounts($order)
@@ -466,7 +466,13 @@ class Export
 
                 //Get the parent item from the order item
                 $parentItem = $orderItem->getParentItem();
-                $weight = $orderItem->getWeight();
+
+                // product weight
+                $productWeight = $orderItem->getWeight();
+
+                // orderItem weight
+                $weight = $productWeight * $orderItem->getQtyOrdered();
+                
                 if ($this->_priceType) {
                     $price = $orderItem->getBasePrice();
                 } else {
@@ -483,7 +489,7 @@ class Export
                     $imageUrl = $attribute->getFrontend()
                         ->getUrl($orderItem->getProduct());
                 }
-                
+
                 if (!empty($parentItem)) {
                     $type = $parentItem->getProductType();
                     if ($type == $this->_typeBundle) {
@@ -525,7 +531,7 @@ class Export
                     }
 
                 }
-                
+
                 if (!empty($orderItem)) {
                     $this->_xmlData .= "\t<Item>\n";
                     $this->_addFieldToXML("SKU", $orderItem->getSku());
@@ -533,16 +539,20 @@ class Export
                     $this->_addFieldToXML("ImageUrl", $imageUrl);
                     $this->_addFieldToXML("Weight", $weight);
                     $this->_addFieldToXML("UnitPrice", $price);
-                    $this->_addFieldToXML(
-                        "Quantity",
-                        intval($orderItem->getQtyOrdered())
-                    );
+
+                    // quantity is always 1, real qty is inside options
+                    $this->_addFieldToXML("Quantity",1);
+
                     //Get the item level gift message info
                     $this->_getGiftMessageInfo($orderItem);
                     /*
                      * Check for the attributes
                      */
                     $this->_xmlData .="\t<Options>\n";
+
+                    // insert real quantity as an option
+                    $this->_xmlData .= $this->_writeOption('Qty', $orderItem->getQtyOrdered());
+
                     $list = [];
                     $attributeCodes = explode(',', $this->_attributes);
                     foreach ($attributeCodes as $attributeCode) {
@@ -550,7 +560,7 @@ class Export
                         $data = '';
                         if (!empty($product)) {
                             $data = $orderItem->getProduct()
-                                ->hasData($attributeCode);   
+                                ->hasData($attributeCode);
                         }
 
                         if ($attributeCode && $data) {
@@ -599,9 +609,9 @@ class Export
         if (!empty($options)) {
             foreach ($options as $option) {
                 $this->_writeOption($option['label'], $option['value']);
-            }    
+            }
         }
-        
+
         $buyRequest = $item->getProductOptionByCode('info_buyRequest');
         if ($buyRequest && isset($buyRequest['super_attribute'])) {
             // super_attribute is non-null and non-empty
@@ -613,7 +623,7 @@ class Export
                 if (!empty($parentOptions)) {
                     foreach ($parentOptions as $option) {
                         $this->_writeOption($option['label'], $option['value']);
-                    }    
+                    }
                 }
 
             }
