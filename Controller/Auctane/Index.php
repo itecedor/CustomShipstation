@@ -1,126 +1,131 @@
 <?php
+
 namespace Auctane\Api\Controller\Auctane;
 
+use Auctane\Api\Helper\Data;
+use Auctane\Api\Model\Action\Export;
+use Auctane\Api\Model\Action\ShipNotify;
 use Exception;
-use Magento\Framework\App\CsrfAwareActionInterface;
-use Magento\Framework\App\Request\InvalidRequestException;
-use Magento\Framework\App\RequestInterface;
+use Magento\Backend\Model\Auth\Credential\StorageInterface;
+use Magento\Backend\Model\View\Result\RedirectFactory;
+use Magento\Framework\App\Action\Action;
+use Magento\Framework\App\Action\Context;
+use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Store\Model\StoreManagerInterface;
 
-class Index extends \Magento\Framework\App\Action\Action implements CsrfAwareActionInterface
+class Index extends Action
 {
-
     /**
-     * Temporary fix to circumvent the token validation on POST request made to Shipstation
-     *
-     * @param RequestInterface $request
-     * @return bool|null
+     * @var StoreManagerInterface
      */
-    public function validateForCsrf(RequestInterface $request): ?bool
-    {
-        return true;
-    }
-
+    private $storeManager;
     /**
-     * Mandatory method to implement the CsrfAwareActionInterface
-     *
-     * @param RequestInterface $request
-     * @return InvalidRequestException|null
+     * @var StorageInterface
      */
-    public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException
-    {
-        $response = $this->redirectFactory->create()
-            ->setRefererOrBaseUrl()
-            ->setHttpResponseCode(302);
-        $messages = [
-            new Phrase('Invalid Form Key. Please refresh the page.'),
-        ];
-        $exception = new InvalidRequestException($response, $messages);
+    private $storage;
+    /**
+     * @var ScopeConfigInterface
+     */
+    private $scopeConfig;
+    /**
+     * @var Data
+     */
+    private $dataHelper;
+    /**
+     * @var Export
+     */
+    private $export;
+    /**
+     * @var ShipNotify
+     */
+    private $shipNotify;
+    /**
+     * @var RedirectFactory
+     */
+    private $redirectFactory;
 
-        return $exception;
+    public function __construct(
+        Context $context,
+        StoreManagerInterface $storeManager,
+        StorageInterface $storage,
+        ScopeConfigInterface $scopeConfig,
+        Data $dataHelper,
+        Export $export,
+        ShipNotify $shipNotify,
+        RedirectFactory $redirectFactory
+    ) {
+        parent::__construct($context);
+
+        $this->storeManager = $storeManager;
+        $this->storage = $storage;
+        $this->scopeConfig = $scopeConfig;
+        $this->dataHelper = $dataHelper;
+        $this->export = $export;
+        $this->shipNotify = $shipNotify;
+        $this->redirectFactory = $redirectFactory;
     }
 
     /**
      * Default function
      *
-     * @return void
+     * @return bool
+     * @throws \Magento\Framework\Exception\NoSuchEntityException
      */
     public function execute()
     {
-        $authUser = $this->getRequest()->getParam('SS-UserName');
-        $authPassword = $this->getRequest()->getParam('SS-Password');
+        /** @var $request \Magento\Framework\App\Request\Http */
+        $request = $this->getRequest();
 
-        // \Magento\Store\Model\StoreManagerInterface $storeManager
-        $storeManager = $this->_objectManager->get(
-            'Magento\Store\Model\StoreManagerInterface'
-        );
-        $storeId = $storeManager->getStore()->getId();
-        
-        $storageInterface = $this->_objectManager->get(
-            '\Magento\Backend\Model\Auth\Credential\StorageInterface'
+        $authUser = $request->getParam('SS-UserName');
+        $authPassword = $request->getParam('SS-Password');
+
+        $apiKey = $this->scopeConfig->getValue(
+            'shipstation_general/shipstation/ship_api_key'
         );
 
-        $scopeConfig = $this->_objectManager->get(
-            '\Magento\Framework\App\Config\ScopeConfigInterface'
-        );
+        $apiKeyFromShipStation = $request->getHeader('ShipStation-Access-Token');
 
-        // $apiKey = $scopeConfig->getValue(
-        //     'shipstation_general/shipstation/ship_api_key'
-        // );
+        $apiKeyHasBeenGenerated = !empty($apiKey);
+        $apiKeyHasBeenProvided = !empty($apiKeyFromShipStation);
 
-        //$headers = getallheaders();
-        // $shipApiKey = '';
-        
-        // if(isset($headers['ShipStation-Access-Token'])) {
-        //     $shipApiKey = $headers['ShipStation-Access-Token']; 
-        // }
+        if ($apiKeyHasBeenGenerated
+            && $apiKeyHasBeenProvided
+            && ($apiKeyFromShipStation === $apiKey)) {
+            $userAuthentication = true;
+        } else {
+            $userAuthentication = $this->storage->authenticate(
+                $authUser,
+                $authPassword
+            );
+        }
 
-        // if(($shipApiKey == $apiKey)  && $shipApiKey && $apiKey) {
-        //     $userAuthentication = 1;
-        // } else {
-        //     $userAuthentication = $storageInterface->authenticate(
-        //         $authUser,
-        //         $authPassword
-        //     );    
-        // }
-
-        $userAuthentication = $storageInterface->authenticate(
-            $authUser,
-            $authPassword
-        );
-
-        $dataHelper = $this->_objectManager->get('Auctane\Api\Helper\Data');
         if (!$userAuthentication) {
-            header(sprintf('WWW-Authenticate: Basic realm=ShipStation'));
-            $result = $dataHelper->fault(401, 'Authentication failed');
-            header('Content-Type: text/xml; charset=UTF-8');
+            $this->getResponse()->setHeader('WWW-Authenticate: ', 'Basic realm=ShipStation', true);
+            $this->getResponse()->setHeader('Content-Type', 'text/xml; charset=UTF-8', true);
+
+            $result = $this->dataHelper->fault(401, 'Authentication failed');
             $this->getResponse()->setBody($result);
             return false;
         }
 
         //Get the requested action
-        $action = $this->getRequest()->getParam('action');
+        $action = $request->getParam('action');
         try {
             switch ($action) {
                 case 'export':
-                    $export = $this->_objectManager->get(
-                        'Auctane\Api\Model\Action\Export'
-                    );
-                    $result = $export->process($this->getRequest(), $storeId);
-                    break; 
+                    $storeId = $this->storeManager->getStore()->getId();
+                    $result = $this->export->process($request, $this->getResponse(), $storeId);
+                    break;
 
                 case 'shipnotify':
-                    $shipNotify = $this->_objectManager->get(
-                        'Auctane\Api\Model\Action\ShipNotify'
-                    );
-                    $result = $shipNotify->process($this->getRequest());
+                    $result = $this->shipNotify->process();
                     // if there hasn't been an error then "200 OK" is given
                     break;
             }
-
         } catch (Exception $fault) {
-            $result = $dataHelper->fault($fault->getCode(), $fault->getMessage());
+            $result = $this->dataHelper->fault($fault->getCode(), $fault->getMessage());
         }
-        
+
         $this->getResponse()->setBody($result);
     }
 }
