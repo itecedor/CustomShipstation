@@ -428,7 +428,13 @@ class Export
 
                 //Get the parent item from the order item
                 $parentItem = $orderItem->getParentItem();
-                $weight = $orderItem->getWeight();
+
+                // ITC product weight
+                $productWeight = $orderItem->getWeight();
+
+                // ITC orderItem weight
+                $weight = $productWeight * $orderItem->getQtyOrdered();
+
                 if ($this->_priceType) {
                     $price = $orderItem->getBasePrice();
                 } else {
@@ -490,16 +496,20 @@ class Export
                     $this->_addFieldToXML("ImageUrl", $imageUrl);
                     $this->_addFieldToXML("Weight", $weight);
                     $this->_addFieldToXML("UnitPrice", $price);
-                    $this->_addFieldToXML(
-                        "Quantity",
-                        (int)$orderItem->getQtyOrdered()
-                    );
+
+                    // ITC Quantity is always 1, real qty is inside options
+                    $this->_addFieldToXML("Quantity",1);
+
                     //Get the item level gift message info
                     $this->_getGiftMessageInfo($orderItem);
                     /*
                      * Check for the attributes
                      */
                     $this->_xmlData .= "\t<Options>\n";
+
+                    // ITC insert real quantity as an option
+                    $this->_xmlData .= $this->_writeOption('Qty', $orderItem->getQtyOrdered());
+
                     $attributeCodes = explode(',', $this->_attributes);
                     $this->_writeOrderItemAttributesAsOptions($attributeCodes, $orderItem);
 
