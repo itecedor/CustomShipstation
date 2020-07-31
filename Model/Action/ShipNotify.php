@@ -260,9 +260,9 @@ class ShipNotify
                 $itemSku = trim($xmlItem->SKU);
                 // store quantity by order item ID, not by SKU
                 if ($itemSku == $sku) {
-                    $qtys[$item->getId()] = (float)$xmlItem->Quantity;
+                    $qtys[$item->getId()] = (float)$xmlItem->Options->Qty;
                     if ($item->getParentItemId()) {
-                        $qtys[$item->getParentItemId()] = (float)$xmlItem->Quantity;
+                        $qtys[$item->getParentItemId()] = (float)$xmlItem->Options->Qty;
                     }
 
                 }
